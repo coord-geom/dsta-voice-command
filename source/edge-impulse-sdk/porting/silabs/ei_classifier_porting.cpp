@@ -27,11 +27,17 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-/* Extern Silabs functions -------------------------------------------------- */
-extern "C" void UTIL_delay(uint32_t ms);
-extern "C" uint64_t UTIL_getTick(void);
-
+//TODO: use only headers after migrating Thunderboard2 firmware
+#if defined(EFR32MG24B310F1536IM48) && EFR32MG24B310F1536IM48==1
+#include "sl_sleeptimer.h"
+#include "sl_stdio.h"
+#elif defined(EFR32MG12P332F1024GL125) && EFR32MG12P332F1024GL125==1
+extern "C" {
+    void sl_sleeptimer_delay_millisecond(uint16_t time_ms);
+    uint32_t sl_sleeptimer_get_tick_count(void);
+    uint32_t sl_sleeptimer_tick_to_ms(uint32_t tick);
+}
+#endif
 __attribute__((weak)) EI_IMPULSE_ERROR ei_run_impulse_check_canceled() {
     return EI_IMPULSE_OK;
 }
@@ -40,19 +46,31 @@ __attribute__((weak)) EI_IMPULSE_ERROR ei_run_impulse_check_canceled() {
  * Cancelable sleep, can be triggered with signal from other thread
  */
 __attribute__((weak)) EI_IMPULSE_ERROR ei_sleep(int32_t time_ms) {
-    UTIL_delay(time_ms);
+    sl_sleeptimer_delay_millisecond(time_ms);
     return EI_IMPULSE_OK;
 }
 
 uint64_t ei_read_timer_ms()
 {
-    return UTIL_getTick();
+    return (uint32_t)sl_sleeptimer_tick_to_ms(sl_sleeptimer_get_tick_count());
 }
 
 uint64_t ei_read_timer_us()
 {
-    return 0;
+    return ei_read_timer_ms() * 1000;
 }
+
+void ei_serial_set_baudrate(int baudrate)
+{
+}
+
+//TODO: after merging Thunderboard 2 firmware, use this function
+#if defined(EFR32MG24B310F1536IM48) && EFR32MG24B310F1536IM48==1
+void ei_putchar(char c)
+{
+    sl_putchar(c);
+}
+#endif
 
 __attribute__((weak)) void ei_printf(const char *format, ...) {
     va_list myargs;

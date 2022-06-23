@@ -1,4 +1,4 @@
-// Patched by Edge Impulse to include reference, CMSIS-NN and ARC kernels
+// Patched by Edge Impulse to include reference, CMSIS-NN, ARC and MVP kernels
 #include "../../../../classifier/ei_classifier_config.h"
 #if EI_CLASSIFIER_TFLITE_ENABLE_ARC == 1
 /* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
@@ -20,7 +20,7 @@ limitations under the License.
 #define TENSORFLOW_LITE_MICRO_ARC_SCRATCH_BUF_MGR_H_
 
 #include "mli_api.h"  // NOLINT
-#include "tensorflow/lite/c/common.h"
+#include "edge-impulse-sdk/tensorflow/lite/c/common.h"
 
 namespace tflite {
 namespace ops {

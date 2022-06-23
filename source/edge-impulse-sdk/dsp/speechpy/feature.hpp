@@ -203,6 +203,10 @@ public:
             high_frequency = sampling_frequency / 2;
         }
 
+        if (low_frequency == 0) {
+            low_frequency = 300;
+        }
+
         stack_frames_info_t stack_frame_info = { 0 };
         stack_frame_info.signal = signal;
 
@@ -294,7 +298,7 @@ public:
 
             float energy = numpy::sum(power_spectrum_frame.buffer, power_spectrum_frame_size);
             if (energy == 0) {
-                energy = FLT_EPSILON;
+                energy = 1e-10;
             }
 
             out_energies->buffer[ix] = energy;
@@ -332,7 +336,7 @@ public:
      * @EIDSP_OK if OK
      */
     static int spectrogram(matrix_t *out_features,
-        signal_t *signal, uint32_t sampling_frequency,
+        signal_t *signal, float sampling_frequency,
         float frame_length, float frame_stride, uint16_t fft_length,
         uint16_t version
         )
@@ -389,6 +393,25 @@ public:
                 EIDSP_ERR(ret);
             }
 
+            // normalize data (only when version is above 3)
+            if (version >= 3) {
+                // it might be that everything is already normalized here...
+                bool all_between_min_1_and_1 = true;
+                for (size_t ix = 0; ix < signal_frame.rows * signal_frame.cols; ix++) {
+                    if (signal_frame.buffer[ix] < -1.0f || signal_frame.buffer[ix] > 1.0f) {
+                        all_between_min_1_and_1 = false;
+                        break;
+                    }
+                }
+
+                if (!all_between_min_1_and_1) {
+                    ret = numpy::scale(&signal_frame, 1.0f / 32768.0f);
+                    if (ret != 0) {
+                        EIDSP_ERR(ret);
+                    }
+                }
+            }
+
             ret = processing::power_spectrum(
                 signal_frame.buffer,
                 stack_frame_info.frame_length,
@@ -421,18 +444,18 @@ public:
         float frame_length, float frame_stride, uint16_t num_filters,
         uint16_t version)
     {
-        uint16_t rows = processing::calculate_no_of_stack_frames(
+        int32_t rows = processing::calculate_no_of_stack_frames(
             signal_length,
             sampling_frequency,
             frame_length,
             frame_stride,
             false,
             version);
-        uint16_t cols = num_filters;
+        int32_t cols = num_filters;
 
         matrix_size_t size_matrix;
-        size_matrix.rows = rows;
-        size_matrix.cols = cols;
+        size_matrix.rows = (uint32_t)rows;
+        size_matrix.cols = (uint32_t)cols;
         return size_matrix;
     }
 
@@ -546,18 +569,18 @@ public:
         float frame_length, float frame_stride, uint16_t num_cepstral,
         uint16_t version)
     {
-        uint16_t rows = processing::calculate_no_of_stack_frames(
+        int32_t rows = processing::calculate_no_of_stack_frames(
             signal_length,
             sampling_frequency,
             frame_length,
             frame_stride,
             false,
             version);
-        uint16_t cols = num_cepstral;
+        int32_t cols = num_cepstral;
 
         matrix_size_t size_matrix;
-        size_matrix.rows = rows;
-        size_matrix.cols = cols;
+        size_matrix.rows = (uint32_t)rows;
+        size_matrix.cols = (uint32_t)cols;
         return size_matrix;
     }
 };

@@ -29,7 +29,8 @@ DEALINGS IN THE SOFTWARE.
 #include "edge-impulse-sdk/classifier/ei_run_classifier.h"
 #include "edge-impulse-sdk/dsp/numpy.hpp"
 
-#define INFERENCING_KEYWORD     "microbit"
+#define INFERENCING_KEYWORD_1     "help"
+#define INFERENCING_KEYWORD_2     "arrived"
 
 static NRF52ADCChannel *mic = NULL;
 static ContinuousAudioStreamer *streamer = NULL;
@@ -49,7 +50,19 @@ static int microphone_audio_signal_get_data(size_t offset, size_t length, float 
 /**
  * Invoked when we hear the keyword !
  */
-static void heard_keyword() {
+static void heard_keyword_1() {
+    const char * sad_emoji ="\
+        000,255,000,255,000\n\
+        000,000,000,000,000\n\
+        000,255,255,255,000\n\
+        255,000,000,000,255\n\
+        000,000,000,000,000\n";
+    MicroBitImage img(sad_emoji);
+    uBit.io.P0.setDigitalValue(1);
+    uBit.display.print(img);
+}
+
+static void heard_keyword_2() {
     const char * happy_emoji ="\
         000,255,000,255,000\n\
         000,000,000,000,000\n\
@@ -57,8 +70,10 @@ static void heard_keyword() {
         000,255,255,255,000\n\
         000,000,000,000,000\n";
     MicroBitImage img(happy_emoji);
+    uBit.io.P0.setDigitalValue(1);
     uBit.display.print(img);
 }
+
 
 /**
  * Invoked when we hear something else
@@ -120,9 +135,11 @@ mic_inference_test()
     uBit.serial.printf("Allocated everything else\n");
 
     // number of frames since we heard 'microbit'
-    uint8_t last_keywords = 0b0;
+    uint8_t last_keywords_1 = 0b0;
+    uint8_t last_keywords_2 = 0b0;
 
-    int heard_keyword_x_ago = 100;
+    int heard_keyword_1_x_ago = 100;
+    int heard_keyword_2_x_ago = 100;
 
     while(1) {
         uBit.sleep(1);
@@ -143,7 +160,8 @@ mic_inference_test()
                 return;
             }
 
-            bool heard_keyword_this_window = false;
+            bool heard_keyword_1_this_window = false;
+            bool heard_keyword_2_this_window = false;
 
             if (++print_results >= 0) {
                 // print the predictions
@@ -154,45 +172,70 @@ mic_inference_test()
                     ei_printf_float(result.classification[ix].value);
                     ei_printf("\n");
 
-                    if (strcmp(result.classification[ix].label, INFERENCING_KEYWORD) == 0 && result.classification[ix].value > 0.7) {
-                        heard_keyword_this_window = true;
+                    if (strcmp(result.classification[ix].label, INFERENCING_KEYWORD_1) == 0 && result.classification[ix].value > 0.7) {
+                        heard_keyword_1_this_window = true;
+                    } else if (strcmp(result.classification[ix].label, INFERENCING_KEYWORD_2) == 0 && result.classification[ix].value > 0.15) {
+                        heard_keyword_2_this_window = true;
                     }
+                    
                 }
 
-                last_keywords = last_keywords << 1 & 0x1f;
+                last_keywords_1 = last_keywords_1 << 1 & 0x1f;
+                last_keywords_2 = last_keywords_2 << 1 & 0x1f;
 
-                if (heard_keyword_this_window) {
-                    last_keywords += 1;
+                if (heard_keyword_1_this_window) {
+                    last_keywords_1 += 1;
+                } else if (heard_keyword_2_this_window) {
+                    last_keywords_2 += 1;
                 }
 
-                uint8_t keyword_count = 0;
+                uint8_t keyword_1_count = 0;
+                uint8_t keyword_2_count = 0;
                 for (size_t ix = 0; ix < 5; ix++) {
-                    keyword_count += (last_keywords >> ix) & 0x1;
+                    keyword_1_count += (last_keywords_1 >> ix) & 0x1;
+                    keyword_2_count += (last_keywords_2 >> ix) & 0x1;
                 }
 
-                if (heard_keyword_this_window) {
-                    ei_printf("\nHeard keyword: %s (%d times, needs 5)\n", INFERENCING_KEYWORD, keyword_count);
+                if (heard_keyword_1_this_window) {
+                    ei_printf("\nHeard keyword 1: %s (%d times, needs 5)\n", INFERENCING_KEYWORD_1, keyword_1_count);
+                } else if (heard_keyword_2_this_window) {
+                    ei_printf("\nHeard keyword 2: %s (%d times, needs 5)\n", INFERENCING_KEYWORD_2, keyword_2_count);
                 }
+                
 
-                if (keyword_count >= 1) {
-                    ei_printf("\n\n\nDefinitely heard keyword: \u001b[32m%s\u001b[0m\n\n\n", INFERENCING_KEYWORD);
-                    last_keywords = 0;
-                    heard_keyword_x_ago = 0;
+                if (keyword_1_count >= 1) {
+                    ei_printf("\n\n\nDefinitely heard keyword 1: \u001b[32m%s\u001b[0m\n\n\n", INFERENCING_KEYWORD_1);
+                    last_keywords_1 = 0;
+                    heard_keyword_1_x_ago = 0;
                 }
                 else {
-                    heard_keyword_x_ago++;
+                    heard_keyword_1_x_ago++;
                 }
 
-                if (heard_keyword_x_ago <= 4) {
-                    heard_keyword();
+                if (keyword_2_count >= 1) {
+                    ei_printf("\n\n\nDefinitely heard keyword 2: \u001b[32m%s\u001b[0m\n\n\n", INFERENCING_KEYWORD_2);
+                    last_keywords_2 = 0;
+                    heard_keyword_2_x_ago = 0;
                 }
                 else {
+                    heard_keyword_2_x_ago++;
+                }
+
+                if (heard_keyword_1_x_ago <= 4) {
+                    heard_keyword_1();
+                    ei_printf("LED ON\n");
+                } else if (heard_keyword_2_x_ago <= 4) {
+                    heard_keyword_2();
+                    ei_printf("LED OFF\n");
+                } else {
                     heard_other();
                 }
+                ei_printf("Digital Value %d\n",uBit.io.P0.getDigitalValue());
             }
         }
     }
 }
+
 
 /**
  * Microbit implementations for Edge Impulse target-specific functions
